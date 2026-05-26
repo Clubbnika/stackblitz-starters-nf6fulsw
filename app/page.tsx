@@ -8,14 +8,14 @@ import { getDatabase, ref, push, onValue, remove, update } from 'firebase/databa
 const firebaseConfig = {
   apiKey: 'AIzaSyD3s0uLj2sp2cE218ti0Q1gK3jOFBZDXrI',
   authDomain: 'nikmenu-9a6f0.firebaseapp.com',
-  databaseURL: "https://nikmenu-9a6f0-default-rtdb.firebaseio.com",
-    projectId: 'nikmenu-9a6f0',
+  databaseURL: 'https://nikmenu-9a6f0.europe-west1.firebasedatabase.app/',
+  projectId: 'nikmenu-9a6f0',
   storageBucket: 'nikmenu-9a6f0.firebasestorage.app',
   messagingSenderId: '667053801751',
   appId: '1:667053801751:web:c657209aa3d56cb77f3752',
 };
 
-// Безпечна ініціалізація для Next.js (щоб додаток не видавав помилку при перезавантаженні сторінки)
+// Безпечна ініціалізація для Next.js
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getDatabase(app);
 
@@ -27,6 +27,7 @@ interface Meal {
   provider: string;
   rating: number;
   isWishlist?: boolean;
+  isWishList?: boolean; // Додатково підтримуємо старий варіант регістру
 }
 
 export default function SmartMenuPlanner() {
@@ -46,7 +47,12 @@ export default function SmartMenuPlanner() {
   const providers = ['GUD FUD', 'Healthy lunch'];
   const categoriesList = ['Основна страва', 'Гарнір', 'Салати', 'Супи', 'Сендвічі', 'Десерти'];
 
-  // Завантаження даних
+  // Перевірка, чи є страва у вішлісті (всеїдний хелпер для обох регістрів літер)
+  const checkIsWishlist = (meal: Meal): boolean => {
+    return !!meal.isWishlist || !!meal.isWishList;
+  };
+
+  // Завантаження даних з бази
   useEffect(() => {
     try {
       const mealsRef = ref(db, 'meals');
@@ -103,12 +109,14 @@ export default function SmartMenuPlanner() {
   const handleApproveWishlistMeal = (id: string, userRating: number) => {
     update(ref(db, `meals/${id}`), {
       isWishlist: false,
+      isWishList: false, // Очищуємо обидва прапорці при оцінці
       rating: userRating
     });
   };
 
   const generateMenu = () => {
-    const ratedMeals = meals.filter(m => !m.isWishlist);
+    // Оціненими вважаються ті страви, які НЕ в вішлісті (в обох регістрах)
+    const ratedMeals = meals.filter(m => !checkIsWishlist(m));
     const byCategory: Record<string, Meal[]> = {};
     categoriesList.forEach(cat => {
       byCategory[cat] = ratedMeals.filter(m => m.category === cat);
@@ -149,7 +157,7 @@ export default function SmartMenuPlanner() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF0F5] text-black font-mono p-4 md:p-8 flex flex-col items-center面">
+    <div className="min-h-screen bg-[#FFF0F5] text-black font-mono p-4 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* ЛІВА ЧАСТИНА */}
@@ -300,20 +308,23 @@ export default function SmartMenuPlanner() {
               onClick={() => setActiveTab('rated')}
               className={`flex-1 p-3 border-4 border-black font-black uppercase text-sm tracking-wider ${activeTab === 'rated' ? 'bg-black text-white shadow-[4px_4px_0px_0px_rgba(255,20,147,1)]' : 'bg-white text-black'}`}
             >
-              🥗 Оцінені ({meals.filter(m => !m.isWishlist).length})
+              🥗 Оцінені ({meals.filter(m => !checkIsWishlist(m)).length})
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('wishlist')}
               className={`flex-1 p-3 border-4 border-black font-black uppercase text-sm tracking-wider ${activeTab === 'wishlist' ? 'bg-[#FF1493] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}
             >
-              📌 Планую спробувати ({meals.filter(m => !!m.isWishlist).length})
+              📌 Планую спробувати ({meals.filter(m => checkIsWishlist(m)).length})
             </button>
           </div>
 
           <div className="flex flex-col gap-3 max-h-[700px] overflow-y-auto pr-2">
             {meals
-              .filter(meal => activeTab === 'wishlist' ? !!meal.isWishlist : !meal.isWishlist)
+              .filter(meal => {
+                const wish = checkIsWishlist(meal);
+                return activeTab === 'wishlist' ? wish : !wish;
+              })
               .map((meal) => (
                 <div key={meal.id} className="p-4 border-2 border-black flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                   <div>
@@ -326,7 +337,7 @@ export default function SmartMenuPlanner() {
                   </div>
 
                   <div className="flex items-center gap-4 justify-between sm:justify-end">
-                    {!meal.isWishlist ? (
+                    {!checkIsWishlist(meal) ? (
                       <div className="flex text-[#FF1493] text-lg font-black">
                         {(() => {
                           const displayRating = meal.rating > 5 ? Math.round(meal.rating / 2) : meal.rating;
@@ -352,6 +363,15 @@ export default function SmartMenuPlanner() {
                   </div>
                 </div>
               ))}
+
+            {meals.filter(meal => {
+              const wish = checkIsWishlist(meal);
+              return activeTab === 'wishlist' ? wish : !wish;
+            }).length === 0 && (
+              <div className="text-center py-8 font-bold text-gray-500 uppercase text-xs border-2 border-dashed border-black">
+                Тут поки порожньо 🦖
+              </div>
+            )}
           </div>
         </div>
 
