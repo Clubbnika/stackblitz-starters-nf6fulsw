@@ -35,7 +35,7 @@ export default function App() {
   // Стейт форми додавання
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Основна страва');
-  const [calories, setCalories] = useState<number | ''>(''); // Тепер може бути порожнім рядком
+  const [calories, setCalories] = useState<number | ''>(''); // Може бути порожнім рядком
   const [provider, setProvider] = useState('GUD FUD');
   const [rating, setRating] = useState(5);
   const [isWishlist, setIsWishlist] = useState(false); // Галочка у формі
@@ -52,23 +52,25 @@ export default function App() {
   const providers = ['GUD FUD', 'Healthy lunch'];
   const categoriesList = ['Основна страва', 'Гарнір', 'Салати', 'Супи', 'Сендвічі', 'Десерти'];
 
-  // Завантаження даних з Firebase
+  // Завантаження даних з Firebase (Виправлено та заземлено ⚡)
   useEffect(() => {
     const mealsRef = ref(db, 'meals');
     onValue(mealsRef, (snapshot) => {
+      // Якщо Firebase взагалі дав відповідь — значить коннект є і він стабільний!
+      setIsDatabaseConnected(true); 
+      
       const data = snapshot.val();
       if (data) {
-        setIsDatabaseConnected(true);
         const loadedMeals: Meal[] = Object.entries(data).map(([id, value]: [string, any]) => ({
           id,
-          ...value,
+          ...(value as Record<string, any>),
         }));
         setMeals(loadedMeals);
       } else {
-        setIsDatabaseConnected(false);
         setMeals([]);
       }
-    }, () => {
+    }, (error) => {
+      console.error("Firebase error:", error);
       setIsDatabaseConnected(false);
     });
   }, []);
@@ -113,7 +115,7 @@ export default function App() {
 
   // Логіка рандомайзера з урахуванням нових лімітів
   const generateMenu = () => {
-    // Оціненими вважаються ті, у кого поля isWishlist або немає, або воно суворо false (!! перетворює undefined на false)
+    // Оціненими вважаються ті, у кого поля isWishlist немає, або воно суворо false
     const ratedMeals = meals.filter(m => !m.isWishlist);
 
     // Групуємо оцінені страви за категоріями
@@ -124,7 +126,7 @@ export default function App() {
 
     const selected: Meal[] = [];
 
-    // Допоміжна функция для вибору випадкової страви
+    // Допоміжна функція для вибору випадкової страви
     const pullRandom = (catName: string, count: number) => {
       const available = [...(byCategory[catName] || [])];
       for (let i = 0; i < count; i++) {
@@ -225,7 +227,7 @@ export default function App() {
                   value={calories}
                   onChange={(e) => {
                     const val = e.target.value;
-                    setCalories(val === '' ? '' : Number(val)); // Поле залишається пустим при видаленні
+                    setCalories(val === '' ? '' : Number(val)); // Залишається порожнім при видаленні цифр
                   }}
                   placeholder="300" 
                   className="w-full p-2 border-2 border-black font-bold focus:outline-none"
@@ -333,15 +335,17 @@ export default function App() {
         {/* ПРАВА ЧАСТИНА: Списки страв */}
         <div className="lg:col-span-7 border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
           
-          {/* ВКЛАДКИ СПИСКУ (Виправлено умову !!meal.isWishlist для відображення старих страв) */}
+          {/* ВКЛАДКИ СПИСКУ */}
           <div className="flex gap-2 mb-6">
             <button
+              type="button"
               onClick={() => setActiveTab('rated')}
               className={`flex-1 p-3 border-4 border-black font-black uppercase text-sm tracking-wider ${activeTab === 'rated' ? 'bg-black text-white shadow-[4px_4px_0px_0px_rgba(255,20,147,1)]' : 'bg-white text-black'}`}
             >
               🥗 Оцінені страви ({meals.filter(m => !m.isWishlist).length})
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab('wishlist')}
               className={`flex-1 p-3 border-4 border-black font-black uppercase text-sm tracking-wider ${activeTab === 'wishlist' ? 'bg-[#FF1493] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}
             >
@@ -374,17 +378,29 @@ export default function App() {
 
                   <div className="flex items-center gap-4 justify-between sm:justify-end">
                     
-                    {/* Кнопки оцінки чи зірочки */}
+                    {/* Рендеринг зірочок або кнопок оцінки */}
                     {!meal.isWishlist ? (
+                      // Виправлено: Розумний рендер зірочок, що безпечно конвертує 10-бальну оцінку у 5-бальну
                       <div className="flex text-[#FF1493] text-lg font-black">
-                        {'★'.repeat(meal.rating)}{'☆'.repeat(5 - meal.rating)}
+                        {(() => {
+                          const displayRating = meal.rating > 5 ? Math.round(meal.rating / 2) : meal.rating;
+                          const safeRating = Math.max(0, Math.min(5, displayRating || 0));
+                          return (
+                            <>
+                              {'★'.repeat(safeRating)}
+                              {'☆'.repeat(5 - safeRating)}
+                            </>
+                          );
+                        })()}
                       </div>
                     ) : (
+                      // Для планованих страв виводимо кнопки швидкої оцінки
                       <div className="flex items-center gap-2 bg-white p-1 border border-black">
                         <span className="text-[10px] font-black uppercase px-1">Оцінити:</span>
                         {[1, 2, 3, 4, 5].map((num) => (
                           <button
                             key={num}
+                            type="button"
                             onClick={() => handleApproveWishlistMeal(meal.id!, num)}
                             className="hover:text-[#FF1493] font-black text-xs px-1 border border-gray-200 hover:border-black bg-gray-50"
                           >
@@ -396,6 +412,7 @@ export default function App() {
 
                     {/* Видалення */}
                     <button 
+                      type="button"
                       onClick={() => handleDeleteMeal(meal.id!)}
                       className="bg-black text-white hover:bg-red-600 font-bold px-2 py-1 text-xs border border-black uppercase"
                     >
