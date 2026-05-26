@@ -8,8 +8,8 @@ import { getDatabase, ref, push, onValue, remove, update } from 'firebase/databa
 const firebaseConfig = {
   apiKey: 'AIzaSyD3s0uLj2sp2cE218ti0Q1gK3jOFBZDXrI',
   authDomain: 'nikmenu-9a6f0.firebaseapp.com',
-  databaseURL: 'https://nikmenu-9a6f0.europe-west1.firebasedatabase.app/',
-  projectId: 'nikmenu-9a6f0',
+  databaseURL: "https://nikmenu-9a6f0-default-rtdb.firebaseio.com",
+    projectId: 'nikmenu-9a6f0',
   storageBucket: 'nikmenu-9a6f0.firebasestorage.app',
   messagingSenderId: '667053801751',
   appId: '1:667053801751:web:c657209aa3d56cb77f3752',
