@@ -40,6 +40,7 @@ export default function SmartMenuPlanner() {
   const [activeTab, setActiveTab] = useState<'rated' | 'wishlist'>('rated');
   const [randomMenu, setRandomMenu] = useState<Meal[]>([]);
   const [lockedSlots, setLockedSlots] = useState<Record<number, boolean>>({});
+  const [limitType, setLimitType] = useState<'four' | 'three'>('four');
   const [isDatabaseConnected, setIsDatabaseConnected] = useState(false);
 
   const providers = ['GUD FUD', 'Healthy lunch'];
@@ -70,30 +71,38 @@ export default function SmartMenuPlanner() {
     const ratedMeals = meals.filter(m => !checkIsWishlist(m));
     if (ratedMeals.length === 0) return;
 
-    // Створюємо масив на 4 слоти (як у твоєму дизайні)
-    let newMenu = forceFull ? new Array(4).fill(null) : (randomMenu.length > 0 ? [...randomMenu] : new Array(4).fill(null));
+    let targetCount = limitType === 'four' ? 4 : 3;
+    let newMenu = forceFull ? new Array(targetCount).fill(null) : (randomMenu.length > 0 ? [...randomMenu] : new Array(targetCount).fill(null));
     if (forceFull) setLockedSlots({});
+
+    let pool: string[] = [];
+    if (limitType === 'four') {
+      pool = ['Основна страва', 'Гарнір', 'Салати', 'Супи', 'Сендвічі', 'Десерти'].sort(() => 0.5 - Math.random());
+    } else {
+      pool = ['Основна страва', 'Гарнір', 'Салати', 'Салати', 'Сендвічі', 'Сендвічі', 'Супи', 'Супи', 'Десерти', 'Десерти'].sort(() => 0.5 - Math.random());
+    }
 
     const updatedMenu = newMenu.map((meal, i) => {
       if (lockedSlots[i] && meal) return meal;
-      const randomCat = categoriesList[Math.floor(Math.random() * categoriesList.length)];
-      const candidates = ratedMeals.filter(m => m.category === randomCat);
+      const cat = pool[i % pool.length];
+      const candidates = ratedMeals.filter(m => m.category === cat);
       return candidates.length > 0 ? getWeightedRandom(candidates) : getWeightedRandom(ratedMeals);
     });
     setRandomMenu(updatedMenu);
   };
 
+  const resetMenu = () => { setLockedSlots({}); setRandomMenu([]); };
   const toggleLock = (index: number) => setLockedSlots(prev => ({ ...prev, [index]: !prev[index] }));
-
+  
   const handleAddMeal = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     push(ref(db, 'dishes'), { name, category, calories: calories || 0, provider, rating: isWishlist ? 0 : rating, isWishlist });
     setName(''); setCalories(''); setIsWishlist(false);
   };
-
+  
   const handleDeleteMeal = (id: string) => { if (confirm('Видалити?')) remove(ref(db, `dishes/${id}`)); };
-
+  
   const handleApproveWishlistMeal = (id: string, userRating: number) => {
     update(ref(db, `dishes/${id}`), { isWishlist: false, isWishList: false, rating: userRating });
   };
@@ -101,88 +110,67 @@ export default function SmartMenuPlanner() {
   return (
     <div className="min-h-screen bg-[#FFF0F5] text-black font-mono p-4 md:p-8 flex flex-col items-center">
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* ЛІВА ЧАСТИНА (Твій оригінальний дизайн) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div className="border-4 border-black bg-[#FF1493] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-white text-center">
-            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-wider">MARKETING IS OUR ART? <br /> NO, MENU IS! 🦖</h1>
-            <div className="mt-4 inline-block bg-white text-black font-bold px-3 py-1 border-2 border-black uppercase text-sm">SUCCESS IS YOUR REALITY / DAILY PLANNER</div>
-            <div className="mt-4 flex items-center justify-center gap-2">
-              <span className={`w-3 h-3 rounded-full border border-black ${isDatabaseConnected ? 'bg-[#00FF7F]' : 'bg-red-500'}`}></span>
-              <span className="text-xs font-bold uppercase bg-black text-white px-2 py-0.5">{isDatabaseConnected ? 'DATABASE CONNECTED' : 'DATABASE DISCONNECTED'}</span>
-            </div>
+             <h1 className="text-xl font-black uppercase">MARKETING IS OUR ART? <br /> NO, MENU IS! 🦖</h1>
           </div>
 
           <form onSubmit={handleAddMeal} className="border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4">
-            <h2 className="text-lg font-black uppercase bg-black text-white px-2 py-1 inline-block self-start">[ ДОДАТИ СТРАВУ ]</h2>
-            <div>
-              <label className="block text-xs font-bold uppercase mb-1">Назва страви</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="напр., Авокадо-тост" className="w-full p-2 border-2 border-black font-bold focus:outline-none" />
-            </div>
+            <h2 className="text-lg font-black uppercase">[ ДОДАТИ СТРАВУ ]</h2>
+            <input placeholder="Назва страви" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border-2 border-black font-bold" />
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">Категорія</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full p-2 border-2 border-black font-bold bg-white">{categoriesList.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">Калорії</label>
-                <input type="text" value={calories} onChange={(e) => setCalories(Number(e.target.value))} placeholder="300" className="w-full p-2 border-2 border-black font-bold" />
-              </div>
+              <select value={category} onChange={e => setCategory(e.target.value)} className="p-2 border-2 border-black font-bold">{categoriesList.map(c => <option key={c}>{c}</option>)}</select>
+              <input type="number" placeholder="Ккал" value={calories} onChange={e => setCalories(Number(e.target.value))} className="p-2 border-2 border-black font-bold" />
             </div>
-            <div>
-              <label className="block text-xs font-bold uppercase mb-1">Джерело їжі</label>
-              <div className="flex gap-2">{providers.map(p => <button key={p} type="button" onClick={() => setProvider(p)} className={`flex-1 p-2 border-2 border-black font-bold text-sm ${provider === p ? 'bg-[#FF1493] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>{p}</button>)}</div>
-            </div>
-            {!isWishlist && (
-              <div>
-                <label className="block text-xs font-bold uppercase mb-1">Оцінка смаку: {rating}/5</label>
-                <input type="range" min="1" max="5" value={rating} onChange={(e) => setRating(Number(e.target.value))} className="w-full accent-black" />
-              </div>
-            )}
-            <label className="flex items-center gap-3 bg-[#FFF0F5] p-3 border-2 border-black cursor-pointer">
-              <input type="checkbox" checked={isWishlist} onChange={(e) => setIsWishlist(e.target.checked)} className="w-5 h-5 accent-[#FF1493]" />
-              <span className="text-xs font-black uppercase text-black">📌 Ще не куштувала (хочу замовити)</span>
-            </label>
-            <button type="submit" className="w-full bg-[#00FF7F] text-black font-black p-3 border-4 border-black uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">Зберегти у базу даних</button>
+            <div className="flex gap-2">{providers.map(p => <button key={p} type="button" onClick={() => setProvider(p)} className={`flex-1 p-2 border-2 border-black font-bold text-sm ${provider === p ? 'bg-[#FF1493] text-white' : 'bg-white'}`}>{p}</button>)}</div>
+            <input type="range" min="1" max="5" value={rating} onChange={e => setRating(Number(e.target.value))} className="accent-black" />
+            <label className="flex items-center gap-2"><input type="checkbox" checked={isWishlist} onChange={e => setIsWishlist(e.target.checked)} /> ПЛАНУЮ СПРОБУВАТИ</label>
+            <button type="submit" className="w-full bg-[#00FF7F] font-black p-3 border-4 border-black uppercase">ЗБЕРЕГТИ</button>
           </form>
 
-          {/* ГЕНЕРАТОР З ЗАМОЧКАМИ */}
           <div className="border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <h2 className="text-lg font-black uppercase mb-4">[ ГЕНЕРАТОР МЕНЮ ]</h2>
-            <div className="grid grid-cols-2 gap-2 mb-4">
-              <button onClick={() => generateMenu(true)} className="bg-[#FFFF00] font-black p-2 border-2 border-black text-xs uppercase">🎲 Новий пак</button>
-              <button onClick={() => generateMenu(false)} className="bg-[#00FF7F] font-black p-2 border-2 border-black text-xs uppercase">⚡ Вільні слоти</button>
+            <h2 className="text-sm font-black uppercase mb-4">[ ГЕНЕРАТОР ]</h2>
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setLimitType('four')} className={`flex-1 p-2 border-2 border-black text-[10px] font-black ${limitType === 'four' ? 'bg-yellow-400' : ''}`}>4 СТРАВИ</button>
+              <button onClick={() => setLimitType('three')} className={`flex-1 p-2 border-2 border-black text-[10px] font-black ${limitType === 'three' ? 'bg-yellow-400' : ''}`}>3 СТРАВИ</button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 mb-2">
+                <button onClick={() => generateMenu(true)} className="bg-[#FF1493] text-white font-black p-2 text-[10px]">НОВИЙ ПАК</button>
+                <button onClick={() => generateMenu(false)} className="bg-[#00FF7F] font-black p-2 text-[10px]">ВІЛЬНІ СЛОТИ</button>
+            </div>
+            <button onClick={resetMenu} className="w-full bg-black text-white font-black p-2 text-[10px]">Скинути все</button>
+            <div className="grid grid-cols-1 gap-2 mt-4">
               {randomMenu.map((meal, i) => (
                 <div key={i} className={`p-2 border-2 ${lockedSlots[i] ? 'border-[#FF1493]' : 'border-black'} flex justify-between items-center`}>
-                  <span className="text-[10px] font-bold">{meal?.name || "..."}</span>
-                  <button onClick={() => toggleLock(i)} className="text-xs">{lockedSlots[i] ? '🔒' : '🔓'}</button>
+                  <span className="text-[10px] font-bold truncate">{meal.name}</span>
+                  <button onClick={() => toggleLock(i)}>{lockedSlots[i] ? '🔒' : '🔓'}</button>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ПРАВА ЧАСТИНА (Твій оригінальний дизайн) */}
         <div className="lg:col-span-7 border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
           <div className="flex gap-2 mb-6">
-            <button onClick={() => setActiveTab('rated')} className={`flex-1 p-3 border-4 font-black uppercase text-sm ${activeTab === 'rated' ? 'bg-black text-white shadow-[4px_4px_0px_0px_rgba(255,20,147,1)]' : 'bg-white'}`}>🥗 Оцінені ({meals.filter(m => !checkIsWishlist(m)).length})</button>
-            <button onClick={() => setActiveTab('wishlist')} className={`flex-1 p-3 border-4 font-black uppercase text-sm ${activeTab === 'wishlist' ? 'bg-[#FF1493] text-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]' : 'bg-white'}`}>📌 Планую спробувати ({meals.filter(m => checkIsWishlist(m)).length})</button>
+            <button onClick={() => setActiveTab('rated')} className={`flex-1 p-3 border-4 font-black ${activeTab === 'rated' ? 'bg-black text-white' : ''}`}>ОЦІНЕНІ</button>
+            <button onClick={() => setActiveTab('wishlist')} className={`flex-1 p-3 border-4 font-black ${activeTab === 'wishlist' ? 'bg-[#FF1493] text-white' : ''}`}>БАЖАЮ</button>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
             {meals.filter(m => activeTab === 'wishlist' ? checkIsWishlist(m) : !checkIsWishlist(m)).map(m => (
-              <div key={m.id} className="p-4 border-2 border-black flex justify-between items-center gap-4 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <div className="font-black text-xs uppercase">{m.name} <span className="text-[10px] bg-black text-white px-1">({m.category})</span></div>
-                <div className="flex gap-2">
-                  {activeTab === 'wishlist' ? [1,2,3,4,5].map(n => <button key={n} onClick={() => handleApproveWishlistMeal(m.id!, n)} className="text-[10px] font-bold border border-black px-1">{n}★</button>) : <span className="text-[#FF1493] font-black">{'★'.repeat(m.rating)}</span>}
-                  <button onClick={() => handleDeleteMeal(m.id!)} className="bg-black text-white px-2 font-bold text-xs">❌</button>
+              <div key={m.id} className="p-3 border-2 border-black flex justify-between items-center text-xs">
+                <span>{m.name} <span className="font-bold">({m.category})</span></span>
+                <div className="flex items-center gap-2">
+                    {activeTab === 'wishlist' ? (
+                        <div className="flex gap-1">{[1,2,3,4,5].map(n => <button key={n} onClick={() => handleApproveWishlistMeal(m.id!, n)} className="text-base">{n}★</button>)}</div>
+                    ) : (
+                        <span className="text-[#FF1493] text-lg font-black">{'★'.repeat(m.rating)}</span>
+                    )}
+                    <button onClick={() => handleDeleteMeal(m.id!)} className="text-lg">❌</button>
                 </div>
               </div>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );
