@@ -28,6 +28,27 @@ interface Meal {
   isWishList?: boolean;
 }
 
+const CaloriesCounter = ({ menu }: { menu: Meal[] }) => {
+  const total = menu.reduce((sum, meal) => sum + (Number(meal?.calories) || 0), 0);
+  return (
+    <div className="mt-4 p-3 border-2 border-black bg-yellow-100 flex justify-between items-center">
+      <span className="font-black text-[10px] uppercase">Загалом ккал:</span>
+      <span className="font-black text-lg">{total}</span>
+    </div>
+  );
+};
+
+const ProviderBadge = ({ provider }: { provider: string }) => {
+  const isGudFud = provider === 'GUD FUD';
+  return (
+    <span className={`px-2 py-0.5 text-[8px] font-black uppercase border-2 ${
+      isGudFud ? 'border-black bg-yellow-300' : 'border-black bg-cyan-300'
+    }`}>
+      {provider}
+    </span>
+  );
+};
+
 export default function SmartMenuPlanner() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [name, setName] = useState('');
@@ -41,7 +62,6 @@ export default function SmartMenuPlanner() {
   const [randomMenu, setRandomMenu] = useState<Meal[]>([]);
   const [lockedSlots, setLockedSlots] = useState<Record<number, boolean>>({});
   const [limitType, setLimitType] = useState<'four' | 'three'>('four');
-  const [isDatabaseConnected, setIsDatabaseConnected] = useState(false);
 
   const providers = ['GUD FUD', 'Healthy lunch'];
   const categoriesList = ['Основна страва', 'Гарнір', 'Салати', 'Супи', 'Сендвічі', 'Десерти'];
@@ -51,10 +71,9 @@ export default function SmartMenuPlanner() {
   useEffect(() => {
     const dishesRef = ref(db, 'dishes');
     return onValue(dishesRef, (snapshot) => {
-      setIsDatabaseConnected(true);
       const data = snapshot.val();
       setMeals(data ? Object.entries(data).map(([id, value]: [string, any]) => ({ id, ...value })) : []);
-    }, () => setIsDatabaseConnected(false));
+    });
   }, []);
 
   const getWeightedRandom = (items: Meal[]): Meal => {
@@ -67,22 +86,20 @@ export default function SmartMenuPlanner() {
     return items[items.length - 1];
   };
 
-  const generateMenu = (forceFull: boolean = false) => {
+  const generateMenu = () => {
     const ratedMeals = meals.filter(m => !checkIsWishlist(m));
     if (ratedMeals.length === 0) return;
 
-    let targetCount = limitType === 'four' ? 4 : 3;
-    let newMenu = forceFull ? new Array(targetCount).fill(null) : (randomMenu.length > 0 ? [...randomMenu] : new Array(targetCount).fill(null));
-    if (forceFull) setLockedSlots({});
+    const targetCount = limitType === 'four' ? 4 : 3;
+    const currentMenu = [...randomMenu];
+    
+    // Забезпечуємо актуальну довжину масиву
+    while (currentMenu.length < targetCount) currentMenu.push(null as any);
+    if (currentMenu.length > targetCount) currentMenu.length = targetCount;
 
-    let pool: string[] = [];
-    if (limitType === 'four') {
-      pool = ['Основна страва', 'Гарнір', 'Салати', 'Супи', 'Сендвічі', 'Десерти'].sort(() => 0.5 - Math.random());
-    } else {
-      pool = ['Основна страва', 'Гарнір', 'Салати', 'Салати', 'Сендвічі', 'Сендвічі', 'Супи', 'Супи', 'Десерти', 'Десерти'].sort(() => 0.5 - Math.random());
-    }
+    let pool = [...categoriesList].sort(() => 0.5 - Math.random());
 
-    const updatedMenu = newMenu.map((meal, i) => {
+    const updatedMenu = currentMenu.map((meal, i) => {
       if (lockedSlots[i] && meal) return meal;
       const cat = pool[i % pool.length];
       const candidates = ratedMeals.filter(m => m.category === cat);
@@ -112,7 +129,7 @@ export default function SmartMenuPlanner() {
       <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div className="border-4 border-black bg-[#FF1493] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-white text-center">
-             <h1 className="text-xl font-black uppercase">MARKETING IS OUR ART? <br /> NO, MENU IS! 🦖</h1>
+             <h1 className="text-xl font-black uppercase">MENU IS ART! 🦖</h1>
           </div>
 
           <form onSubmit={handleAddMeal} className="border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4">
@@ -134,19 +151,20 @@ export default function SmartMenuPlanner() {
               <button onClick={() => setLimitType('four')} className={`flex-1 p-2 border-2 border-black text-[10px] font-black ${limitType === 'four' ? 'bg-yellow-400' : ''}`}>4 СТРАВИ</button>
               <button onClick={() => setLimitType('three')} className={`flex-1 p-2 border-2 border-black text-[10px] font-black ${limitType === 'three' ? 'bg-yellow-400' : ''}`}>3 СТРАВИ</button>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-                <button onClick={() => generateMenu(true)} className="bg-[#FF1493] text-white font-black p-2 text-[10px]">НОВИЙ ПАК</button>
-                <button onClick={() => generateMenu(false)} className="bg-[#00FF7F] font-black p-2 text-[10px]">ВІЛЬНІ СЛОТИ</button>
-            </div>
-            <button onClick={resetMenu} className="w-full bg-black text-white font-black p-2 text-[10px]">Скинути все</button>
+            
+            <button onClick={generateMenu} className="w-full bg-[#00FF7F] font-black p-3 border-4 border-black uppercase mb-2">ГЕНЕРУВАТИ</button>
+            <button onClick={resetMenu} className="w-full bg-black text-white font-black p-2 text-[10px] uppercase">Скинути все</button>
+            
             <div className="grid grid-cols-1 gap-2 mt-4">
               {randomMenu.map((meal, i) => (
                 <div key={i} className={`p-2 border-2 ${lockedSlots[i] ? 'border-[#FF1493]' : 'border-black'} flex justify-between items-center`}>
-                  <span className="text-[10px] font-bold truncate">{meal.name}</span>
+                  <span className="text-[10px] font-bold truncate">{meal?.name || '---'}</span>
                   <button onClick={() => toggleLock(i)}>{lockedSlots[i] ? '🔒' : '🔓'}</button>
                 </div>
               ))}
             </div>
+            
+            {randomMenu.length > 0 && <CaloriesCounter menu={randomMenu} />}
           </div>
         </div>
 
@@ -158,7 +176,13 @@ export default function SmartMenuPlanner() {
           <div className="space-y-2 max-h-[600px] overflow-y-auto">
             {meals.filter(m => activeTab === 'wishlist' ? checkIsWishlist(m) : !checkIsWishlist(m)).map(m => (
               <div key={m.id} className="p-3 border-2 border-black flex justify-between items-center text-xs">
-                <span>{m.name} <span className="font-bold">({m.category})</span></span>
+                <div className="flex flex-col gap-1">
+                   <span>{m.name} <span className="font-bold">({m.category})</span></span>
+                   <div className="flex gap-2 items-center">
+                     <ProviderBadge provider={m.provider} />
+                     <span className="bg-gray-200 px-1 font-bold">{m.calories} ккал</span>
+                   </div>
+                </div>
                 <div className="flex items-center gap-2">
                     {activeTab === 'wishlist' ? (
                         <div className="flex gap-1">{[1,2,3,4,5].map(n => <button key={n} onClick={() => handleApproveWishlistMeal(m.id!, n)} className="text-base">{n}★</button>)}</div>
