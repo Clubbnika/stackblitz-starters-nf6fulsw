@@ -27,7 +27,7 @@ interface Meal {
   provider: string;
   rating: number;
   isWishlist?: boolean;
-  isWishList?: boolean; // Додатково підтримуємо старий варіант регістру
+  isWishList?: boolean;
 }
 
 export default function SmartMenuPlanner() {
@@ -47,7 +47,7 @@ export default function SmartMenuPlanner() {
   const providers = ['GUD FUD', 'Healthy lunch'];
   const categoriesList = ['Основна страва', 'Гарнір', 'Салати', 'Супи', 'Сендвічі', 'Десерти'];
 
-  // Перевірка, чи є страва у вішлісті (всеїдний хелпер для обох регістрів літер)
+  // Всеїдний хелпер для перевірки вішліста
   const checkIsWishlist = (meal: Meal): boolean => {
     return !!meal.isWishlist || !!meal.isWishList;
   };
@@ -109,13 +109,12 @@ export default function SmartMenuPlanner() {
   const handleApproveWishlistMeal = (id: string, userRating: number) => {
     update(ref(db, `meals/${id}`), {
       isWishlist: false,
-      isWishList: false, // Очищуємо обидва прапорці при оцінці
+      isWishList: false,
       rating: userRating
     });
   };
 
   const generateMenu = () => {
-    // Оціненими вважаються ті страви, які НЕ в вішлісті (в обох регістрах)
     const ratedMeals = meals.filter(m => !checkIsWishlist(m));
     const byCategory: Record<string, Meal[]> = {};
     categoriesList.forEach(cat => {
@@ -175,6 +174,16 @@ export default function SmartMenuPlanner() {
                 {isDatabaseConnected ? 'DATABASE CONNECTED' : 'DATABASE DISCONNECTED'}
               </span>
             </div>
+          </div>
+
+          {/* 📊 ТИМЧАСОВИЙ ДЕБАГ-БЛОК ДЛЯ ПЕРЕВІРКИ ДАНИХ БАЗИ */}
+          <div className="bg-black text-[#00FF7F] p-4 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-xs overflow-x-auto max-h-48">
+            <div className="font-black uppercase text-white mb-2">🔍 ДІАГНОСТИКА БАЗИ ДАНИХ:</div>
+            <div>• Кількість елементів у масиві: <span className="underline font-bold text-yellow-300">{meals.length}</span></div>
+            <div className="mt-2 font-bold text-white uppercase">Перші 2 об'єкти (Сирі дані):</div>
+            <pre className="bg-gray-900 p-2 mt-1 rounded text-[10px] text-gray-300 whitespace-pre-wrap">
+              {meals.length > 0 ? JSON.stringify(meals.slice(0, 2), null, 2) : "Масив meals порожній. Дані не прийшли, або шлях ref(db, 'meals') порожній."}
+            </pre>
           </div>
 
           <form onSubmit={handleAddMeal} className="border-4 border-black bg-white p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col gap-4">
